@@ -13,10 +13,7 @@ between different Firetasks and Fireworks. This module also contains tasks that 
 flow of the workflow, e.g. tasks to check stability or the gap is within a certain range.
 """
 
-import gzip
 import os
-import re
-import pickle
 import glob
 from monty.io import zopen
 
@@ -59,7 +56,7 @@ class UpdateStructureFromPrevCalc(FiretaskBase):
         )
 
         cp2k_input_set = fw_spec.get("cp2k_input_set")
-        ci = Cp2kInputSet.from_dict(cp2k_input_set)
+        ci = Cp2kInputSet.from_dict(cp2k_input_set) if isinstance(cp2k_input_set, dict) else cp2k_input_set
 
         if self.get("cp2k_output_file"):
             out = Cp2kOutput(
