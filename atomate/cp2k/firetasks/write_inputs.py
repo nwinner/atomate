@@ -50,6 +50,7 @@ class WriteCp2kFromIOSet(FiretaskBase):
 
     def run_task(self, fw_spec):
         if isinstance(self["cp2k_input_set"], dict):
+            self['cp2k_input_set'].update(self.get('cp2k_input_params', {}))
             cis = load_class(
                 self["cp2k_input_set"]["@module"],
                 self["cp2k_input_set"]["@class"]
