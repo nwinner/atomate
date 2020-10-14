@@ -13,7 +13,9 @@ import six
 import subprocess
 
 from custodian import Custodian
-from custodian.cp2k.handlers import UnconvergedScfErrorHandler
+from custodian.cp2k.handlers import UnconvergedScfErrorHandler, \
+    FrozenJobErrorHandler, AbortHandler, DivergingScfErrorHandler, \
+    StdErrHandler, NumericalPrecisionHandler
 from custodian.cp2k.jobs import Cp2kJob
 
 from fireworks import explicit_serialize, FiretaskBase, FWAction
@@ -83,7 +85,14 @@ class RunCp2KCustodian(FiretaskBase):
     def run_task(self, fw_spec):
 
         handler_groups = {
-            "default": [UnconvergedScfErrorHandler()],
+            "default": [
+                UnconvergedScfErrorHandler(),
+                FrozenJobErrorHandler(),
+                AbortHandler(),
+                DivergingScfErrorHandler(),
+                StdErrHandler(),
+                NumericalPrecisionHandler()
+            ],
             "strict": [],
             "md": [],
             "no_handler": [],
