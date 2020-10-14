@@ -22,7 +22,9 @@ import numpy as np
 from pymatgen.core.composition import Composition
 from pymatgen.core.structure import Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-from pymatgen.io.cp2k.outputs import Cp2kOutput, Cube
+from pymatgen.io.cp2k.outputs import Cp2kOutput
+from pymatgen.io.cp2k.inputs import Cp2kInput
+from pymatgen.io.cube import Cube
 from pymatgen.apps.borg.hive import AbstractDrone
 from pymatgen.io.vasp.outputs import VolumetricData
 
@@ -34,7 +36,6 @@ __author__ = "Nicholas Winner"
 logger = get_logger(__name__)
 
 
-# TODO: Don't push until going through all this
 class Cp2kDrone(AbstractDrone):
     """
     Adapted from VaspDrone
@@ -113,6 +114,8 @@ class Cp2kDrone(AbstractDrone):
         runs=None,
         parse_dos="auto",
         parse_hartree=False,
+        parse_electron_density=False,
+        parse_spin_density=False,
         additional_fields=None,
         use_full_uri=True,
     ):
@@ -127,11 +130,11 @@ class Cp2kDrone(AbstractDrone):
             additional_fields (dict): dictionary of additional fields to add to output document
             use_full_uri (bool): converts the directory path to the full URI path
         """
-        self.runs = runs or ["precondition"] + [
-            "relax" + str(i + 1) for i in range(9)
-        ]
+        self.runs = runs
         self.parse_dos = parse_dos
         self.parse_hartree = parse_hartree
+        self.parse_electron_density = parse_electron_density
+        self.parse_spin_density = parse_spin_density
         self.additional_fields = additional_fields or {}
         self.use_full_uri = use_full_uri
 
@@ -177,17 +180,31 @@ class Cp2kDrone(AbstractDrone):
         """
         processed_files = OrderedDict()
         files = os.listdir(path)
-        for r in self.runs:
-            # try subfolder schema
-            if r in files:
-                for f in os.listdir(os.path.join(path, r)):
-                    if fnmatch(f, "{}*".format(file_pattern)):
-                        processed_files[r] = os.path.join(r, f)
-            # try extension schema
-            else:
-                for f in files:
-                    if fnmatch(f, "{}.{}*".format(file_pattern, r)):
-                        processed_files[r] = f
+        if self.runs:
+            for r in self.runs:
+                # try subfolder schema
+                if r in files:
+                    for f in os.listdir(os.path.join(path, r)):
+                        if fnmatch(f, "{}*".format(file_pattern)):
+                            processed_files[r] = os.path.join(r, f)
+                # try extension schema
+                else:
+                    for f in files:
+                        if fnmatch(f, "{}.{}*".format(file_pattern, r)):
+                            processed_files[r] = f
+        else:
+            fs = sorted(
+                glob.glob(os.path.join(path, "{}.*".format(file_pattern))),
+                key=lambda x: (int(x.split('.')[-1]), x)
+            )
+            if fs:
+                for i, f in enumerate(fs):
+                    if os.path.isfile(f):
+                        processed_files[i+1] = f
+                    elif os.path.isdir(f):
+                        if os.path.exists(os.path.join(f, file_pattern)):
+                            processed_files[i+1] = os.path.join(f, file_pattern)
+
         if len(processed_files) == 0:
             # get any matching file from the folder
             for f in files:
@@ -364,8 +381,12 @@ class Cp2kDrone(AbstractDrone):
             dir_name, taskname=taskname
         )
 
+        # TODO: maybe there is a more elegant way to process and add additional files generically?
         if self.parse_dos:
-            d['dos'] = out.parse_pdos()
+            out.parse_dos()
+            d['tdos'] = out['tdos']
+            d['pdos'] = out['pdos']
+            d['pdos'] = out['pdos']
 
         if self.parse_hartree:
             cube = Cube(out.filenames['v_hartree'][-1])
@@ -374,6 +395,26 @@ class Cp2kDrone(AbstractDrone):
                     vd.get_average_along_axis(i) for i in range(3)
             ]
             d['v_hartree_grid'] = [
+                vd.get_axis_grid(i) for i in range(3)
+            ]
+
+        if self.parse_electron_density:
+            cube = Cube(out.filenames['electron_density'][-1])
+            vd = VolumetricData(structure=cube.structure, data={'total': cube.data})
+            d['electron_density'] = [
+                vd.get_average_along_axis(i) for i in range(3)
+            ]
+            d['electron_density_grid'] = [
+                vd.get_axis_grid(i) for i in range(3)
+            ]
+
+        if self.parse_spin_density:
+            cube = Cube(out.filenames['spin_density'][-1])
+            vd = VolumetricData(structure=cube.structure, data={'total': cube.data})
+            d['spin_density'] = [
+                vd.get_average_along_axis(i) for i in range(3)
+            ]
+            d['spin_density_grid'] = [
                 vd.get_axis_grid(i) for i in range(3)
             ]
         return d
@@ -504,14 +545,7 @@ class Cp2kDrone(AbstractDrone):
         if len(filenames) >= 1:
             d["orig_inputs"] = {}
             for f in filenames:
-                if "INCAR.orig" in f:
-                    d["orig_inputs"]["incar"] = Incar.from_file(f).as_dict()
-                if "POTCAR.orig" in f:
-                    d["orig_inputs"]["potcar"] = Potcar.from_file(f).as_dict()
-                if "KPOINTS.orig" in f:
-                    d["orig_inputs"]["kpoints"] = Kpoints.from_file(f).as_dict()
-                if "POSCAR.orig" in f:
-                    d["orig_inputs"]["poscar"] = Poscar.from_file(f).as_dict()
+                d["orig_inputs"][f] = Cp2kInput.from_file(f).as_dict()
 
         logger.info("Post-processed " + fullpath)
 
