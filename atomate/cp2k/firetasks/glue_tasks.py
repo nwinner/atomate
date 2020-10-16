@@ -1,12 +1,3 @@
-# coding: utf-8
-
-from __future__ import (
-    division,
-    print_function,
-    unicode_literals,
-    absolute_import,
-)
-
 """
 This module defines tasks that acts as a glue between other vasp Firetasks to allow communication
 between different Firetasks and Fireworks. This module also contains tasks that affect the control
@@ -15,20 +6,19 @@ flow of the workflow, e.g. tasks to check stability or the gap is within a certa
 
 import os
 import glob
+import shutil
 from monty.io import zopen
+from monty.shutil import gzip_dir
 
-from pymatgen.io.cp2k.sets import Cp2kInputSet
-from pymatgen.io.cp2k.inputs import Cp2kInput, Coord, Cell
+from pymatgen.io.cp2k.inputs import Coord, Cell
 from pymatgen.io.cp2k.outputs import Cp2kOutput
 
-from fireworks import explicit_serialize, FiretaskBase, FWAction
+from fireworks import explicit_serialize, FiretaskBase
 
-from atomate.utils.utils import env_chk, get_logger
+from atomate.utils.utils import get_logger
 from atomate.common.firetasks.glue_tasks import (
     get_calc_loc,
-    PassResult,
     CopyFiles,
-    CopyFilesFromCalcLoc,
 )
 
 logger = get_logger(__name__)
@@ -46,7 +36,7 @@ class UpdateStructureFromPrevCalc(FiretaskBase):
     """
 
     required_params = ["prev_calc_loc"]
-    optional_params = ["cp2k_output_file"]
+    optional_params = ["cp2k_output_file", "perturb"]
 
     def run_task(self, fw_spec):
         calc_loc = (
@@ -55,9 +45,6 @@ class UpdateStructureFromPrevCalc(FiretaskBase):
             else {}
         )
 
-        cp2k_input_set = fw_spec.get("cp2k_input_set")
-        ci = Cp2kInputSet.from_dict(cp2k_input_set) if isinstance(cp2k_input_set, dict) else cp2k_input_set
-
         if self.get("cp2k_output_file"):
             out = Cp2kOutput(
                 os.path.join(calc_loc["path"], self.get("cp2k_output_file"))
@@ -65,9 +52,14 @@ class UpdateStructureFromPrevCalc(FiretaskBase):
         else:
             out = Cp2kOutput(glob.glob(calc_loc["path"] + "/cp2k.out*")[0])
 
+        ci = out.input
         out.parse_structures()
-        ci["FORCE_EVAL"]["SUBSYS"]["COORD"] = Coord(out.final_structure)
-        ci["FORCE_EVAL"]["SUBSYS"]["CELL"] = Cell(out.final_structure.lattice)
+        struc = out.final_structure
+        if self.get('perturb', False):
+            struc.perturb(0.01)
+
+        ci["FORCE_EVAL"]["SUBSYS"]["COORD"] = Coord(struc)
+        ci["FORCE_EVAL"]["SUBSYS"]["CELL"] = Cell(struc.lattice)
         fw_spec["cp2k_input_set"] = ci.as_dict()
 
 
@@ -81,7 +73,7 @@ class CopyCp2kOutputs(CopyFiles):
 
 
     Note that you must specify either "calc_loc" or "calc_dir" to indicate
-    the directory containing the previous VASP run.
+    the directory containing the previous run.
 
     Required params:
         (none) - but you must specify either "calc_loc" OR "calc_dir"
@@ -89,7 +81,7 @@ class CopyCp2kOutputs(CopyFiles):
     Optional params:
         calc_loc (str OR bool): if True will set most recent calc_loc. If str
             search for the most recent calc_loc with the matching name
-        calc_dir (str): path to dir that contains VASP output files.
+        calc_dir (str): path to dir that contains output files.
         filesystem (str): remote filesystem. e.g. username@host
     """
 
@@ -133,7 +125,10 @@ class CopyCp2kOutputs(CopyFiles):
                 raise ValueError("Cannot find file: {}".format(f))
 
             # copy the file (minus the relaxation extension)
-            self.fileclient.copy(prev_path_full + gz_ext, dest_path + gz_ext)
+            try:
+                self.fileclient.copy(prev_path_full + gz_ext, dest_path + gz_ext)
+            except shutil.SameFileError:
+                pass
 
             # unzip the .gz if needed
             if gz_ext in [".gz", ".GZ"]:
@@ -153,3 +148,76 @@ class CopyCp2kOutputs(CopyFiles):
 
                 f.close()
                 os.remove(dest_path + gz_ext)
+
+
+@explicit_serialize
+class GzipDir(FiretaskBase):
+    """
+    Task to gzip the current directory.
+    """
+
+    required_params = []
+    optional_params = []
+
+    def run_task(self, fw_spec=None):
+        cwd = os.getcwd()
+        gzip_dir(cwd)
+
+
+@explicit_serialize
+class DeleteFiles(FiretaskBase):
+    """
+    Delete files
+    Uses glob to search for files so any pattern it can accept can be used
+    Required params:
+        files: list of files to remove
+    """
+
+    required_params = ["files"]
+
+    def run_task(self, fw_spec=None):
+        cwd = os.getcwd()
+
+        for file in self.get("files", []):
+            for f in glob.glob(os.path.join(cwd, file)):
+                if os.path.isdir(f):
+                    shutil.rmtree(f)
+                else:
+                    os.remove(f)
+
+
+@explicit_serialize
+class DeleteFilesPrevFolder(DeleteFiles):
+    """
+    Can delete files, also from a previous folder in the wf if one of the optional parameters are given
+    Required params:
+        files: list of files to remove
+    Optional params:
+        calc_dir: directory to delete the files from
+        calc_loc (str OR bool): if True will set most recent calc_loc. If str
+             search for the most recent calc_loc with the matching name
+    """
+
+    required_params = ["files"]
+    optional_params = ["calc_dir", "calc_loc"]
+
+    def run_task(self, fw_spec=None):
+
+        calc_dir = self.get("calc_dir", None)
+        calc_loc = (
+            get_calc_loc(self["calc_loc"], fw_spec["calc_locs"])
+            if self.get("calc_loc")
+            else {}
+        )
+
+        base_folder = os.getcwd()
+        if calc_loc:
+            base_folder = calc_loc["path"]
+        elif calc_dir is not None:
+            base_folder = calc_dir
+        for file in self.get("files", []):
+            for f in glob.glob(os.path.join(base_folder, file)):
+                if os.path.isdir(f):
+                    shutil.rmtree(f)
+                else:
+                    os.remove(f)
