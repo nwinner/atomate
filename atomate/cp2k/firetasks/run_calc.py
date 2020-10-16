@@ -107,7 +107,7 @@ class RunCp2KCustodian(FiretaskBase):
         # initialize variables
         job_type = self.get("job_type", "normal")
         scratch_dir = env_chk(self.get("scratch_dir"), fw_spec)
-        gzip_output = self.get("gzip_output", True)
+        gzip_output = self.get("gzip_output", False)
         max_errors = self.get("max_errors", CUSTODIAN_MAX_ERRORS)
 
         # construct jobs

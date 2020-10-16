@@ -36,9 +36,8 @@ from atomate.cp2k.firetasks.glue_tasks import (
     CopyCp2kOutputs,
 )
 from atomate.cp2k.firetasks.parse_outputs import Cp2kToDb
+from atomate.cp2k.firetasks.glue_tasks import GzipDir
 from atomate.common.firetasks.glue_tasks import PassCalcLocs
-from atomate.cp2k.utils import optimize_structure_sc_scale
-
 
 # TODO: almost all Fws follow a similar copy from calc loc --> write input --> run --> pass locs/data.
 #  Combine into single core firework maybe?
@@ -142,6 +141,7 @@ class BaseFW(Firework):
 
         t.append(RunCp2KCustodian(cp2k_cmd=cp2k_cmd))
         t.append(PassCalcLocs(name=name))
+        t.append(GzipDir(kwargs.get('gzip_output', True)))
         t.append(Cp2kToDb(db_file=db_file, **cp2ktodb_kwargs))
 
         super().__init__(
