@@ -141,7 +141,8 @@ class BaseFW(Firework):
 
         t.append(RunCp2KCustodian(cp2k_cmd=cp2k_cmd))
         t.append(PassCalcLocs(name=name))
-        t.append(GzipDir(kwargs.get('gzip_output', True)))
+        if kwargs.get('gzip_output', True):
+            t.append(GzipDir())
         t.append(Cp2kToDb(db_file=db_file, **cp2ktodb_kwargs))
 
         super().__init__(
