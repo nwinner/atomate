@@ -65,8 +65,6 @@ class Cp2kToDb(FiretaskBase):
         "fw_spec_field",
         "defuse_unsuccessful",
         "task_fields_to_push",
-        "parse_chgcar",
-        "parse_aeccar",
         "db_user_settings"
     ]
 
@@ -86,7 +84,9 @@ class Cp2kToDb(FiretaskBase):
         drone = Cp2kDrone(
             additional_fields=self.get("additional_fields"),
             parse_dos=self.get("parse_dos", False),
-            parse_hartree=self.get("parse_hartree", False)
+            parse_hartree=self.get("parse_hartree", False),
+            parse_electron_density=self.get('parse_electron_density', False),
+            parse_spin_density=self.get('parse_spin_density', False)
         )
 
         # assimilate (i.e., parse)
