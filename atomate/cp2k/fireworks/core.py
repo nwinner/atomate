@@ -103,7 +103,7 @@ class BaseFW(Firework):
             structure, **cp2k_input_set_params
         )
 
-        cp2k_input_set.silence()  # Don't include section descriptions
+        cp2k_input_set.verbosity(False)  # Don't include section descriptions
 
         cp2ktodb_kwargs = cp2ktodb_kwargs or {}
         if "additional_fields" not in cp2ktodb_kwargs:
@@ -120,7 +120,7 @@ class BaseFW(Firework):
                     files_to_copy=files_to_copy, calc_loc=prev_calc_loc
                 )
             )
-            t.append(UpdateStructureFromPrevCalc(prev_calc_loc=prev_calc_loc))
+            t.append(UpdateStructureFromPrevCalc(cp2k_input_set=cp2k_input_set, prev_calc_loc=prev_calc_loc))
 
         # if prev calc directory is being REPEATED, copy files
         if prev_calc_dir:
@@ -144,13 +144,10 @@ class BaseFW(Firework):
         t.append(PassCalcLocs(name=name))
         t.append(Cp2kToDb(db_file=db_file, **cp2ktodb_kwargs))
 
-        spec = {"cp2k_input_set": cp2k_input_set.as_dict()}
-        spec.update(kwargs.get('spec', {}))
         super().__init__(
             t,
             parents=parents,
             name=name,
-            spec=spec,
             **kwargs
         )
 
