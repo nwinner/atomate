@@ -284,8 +284,14 @@ class Cp2kDrone(AbstractDrone):
                 "bandgap": d_calc_final["output"]["bandgap"],
                 "efermi": d_calc_final["output"]["efermi"],
                 "is_metal": d_calc_final["output"]["is_metal"],
+                "pdos": d_calc_final.pop('pdos', None),
+                "tdos": d_calc_final.pop('tdos', None),
+                "ldos": d_calc_final.pop('tdos', None),
+                "cdos": d_calc_final.pop('tdos', None),
                 "v_hartree": d_calc_final.pop('v_hartree', None),
                 "v_hartree_grid": d_calc_final.pop('v_hartree_grid', None),
+                "electron_density": d_calc_final.pop('electron_density', None),
+                "electron_density_grid": d_calc_final.pop('electron_density_grid', None),
             }
 
             # Store symmetry information
@@ -383,10 +389,10 @@ class Cp2kDrone(AbstractDrone):
 
         # TODO: maybe there is a more elegant way to process and add additional files generically?
         if self.parse_dos:
-            out.parse_dos()
-            d['tdos'] = out['tdos']
-            d['pdos'] = out['pdos']
-            d['pdos'] = out['pdos']
+            d['tdos'] = out.data['tdos']
+            d['ldos'] = out.data['ldos']
+            d['pdos'] = out.data['pdos']
+            d['cdos'] = out.data['cdos']
 
         if self.parse_hartree:
             cube = Cube(out.filenames['v_hartree'][-1])

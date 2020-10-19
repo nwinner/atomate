@@ -8,6 +8,7 @@ import os
 import glob
 import shutil
 from monty.io import zopen
+from monty.os.path import zpath
 from monty.shutil import gzip_dir
 
 from pymatgen.io.cp2k.inputs import Coord, Cell
@@ -47,7 +48,9 @@ class UpdateStructureFromPrevCalc(FiretaskBase):
 
         if self.get("cp2k_output_file"):
             out = Cp2kOutput(
-                os.path.join(calc_loc["path"], self.get("cp2k_output_file"))
+                zpath(
+                    os.path.join(calc_loc["path"], self.get("cp2k_output_file"))
+                )
             )
         else:
             out = Cp2kOutput(glob.glob(calc_loc["path"] + "/cp2k.out*")[0])

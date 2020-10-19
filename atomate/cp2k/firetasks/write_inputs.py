@@ -12,19 +12,12 @@ This module defines tasks for writing vasp input sets for various types of vasp 
 """
 
 import os
-from six.moves import range
-from importlib import import_module
-import glob
-
-import numpy as np
-
-from monty.serialization import dumpfn
+from monty.os.path import zpath
 
 from pymatgen.io.cp2k.sets import Cp2kInputSet
-from pymatgen.io.cp2k.outputs import Cp2kOutput
 from fireworks import FiretaskBase, explicit_serialize
 
-from atomate.utils.utils import env_chk, load_class
+from atomate.utils.utils import load_class
 from atomate.common.firetasks.glue_tasks import get_calc_loc
 
 __author__ = "Nicholas Winner"
@@ -64,7 +57,7 @@ class WriteCp2kFromIOSet(FiretaskBase):
             )
         else:
             cis = self["cp2k_input_set"]
-        cis.silence()
+        cis.verbosity(False)
         cis.write_file(input_filename="cp2k.inp", output_dir=".")
 
 
@@ -82,7 +75,7 @@ class WriteCp2kFromPrevious(FiretaskBase):
         calc_loc = get_calc_loc("prev_calc_loc", fw_spec["calc_locs"])
         input_filename = self.get("original_input_filename", "cp2k.input")
         if os.path.isfile(calc_loc, input_filename):
-            input_path = os.path.join(calc_loc, input_filename)
+            input_path = zpath(os.path.join(calc_loc, input_filename))
         else:
             raise FileNotFoundError("Could not find the cp2k input file!")
 
