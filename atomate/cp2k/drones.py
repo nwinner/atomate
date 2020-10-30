@@ -118,6 +118,7 @@ class Cp2kDrone(AbstractDrone):
         parse_spin_density=False,
         additional_fields=None,
         use_full_uri=True,
+        parse_eigenvalues=True,
     ):
         """
         Initialize a cp2k drone to parse cp2k outputs
@@ -134,6 +135,7 @@ class Cp2kDrone(AbstractDrone):
         self.parse_dos = parse_dos
         self.parse_hartree = parse_hartree
         self.parse_electron_density = parse_electron_density
+        self.parse_eigenvalues = parse_eigenvalues
         self.parse_spin_density = parse_spin_density
         self.additional_fields = additional_fields or {}
         self.use_full_uri = use_full_uri
