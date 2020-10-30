@@ -376,8 +376,8 @@ class Cp2kDrone(AbstractDrone):
             datetime.datetime.fromtimestamp(os.path.getmtime(cp2k_file))
         )
         d["density"] = out.final_structure.density
-
         d["has_cp2k_completed"] = d.pop("ran_successfully")
+        d['input']['input_set'] = out.input.as_dict()
 
         # store run name and location ,e.g. relax1, relax2, etc.
         d["task"] = {"type": taskname, "name": taskname}
@@ -423,6 +423,11 @@ class Cp2kDrone(AbstractDrone):
             d['spin_density_grid'] = [
                 vd.get_axis_grid(i) for i in range(3)
             ]
+
+        # Get eigenvalues for last ionic step
+        if self.parse_eigenvalues:
+            d['output']['eigenvalues'] = out.data['eigenvalues'][-1]
+
         return d
 
     def process_raw_data(self, dir_name, taskname="standard"):
