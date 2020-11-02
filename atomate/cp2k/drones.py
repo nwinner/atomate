@@ -294,6 +294,7 @@ class Cp2kDrone(AbstractDrone):
                 "v_hartree_grid": d_calc_final.pop('v_hartree_grid', None),
                 "electron_density": d_calc_final.pop('electron_density', None),
                 "electron_density_grid": d_calc_final.pop('electron_density_grid', None),
+                "eigenvalues": d_calc_final.pop('eigenvalues', None)
             }
 
             # Store symmetry information
