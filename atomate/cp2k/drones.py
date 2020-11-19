@@ -429,7 +429,7 @@ class Cp2kDrone(AbstractDrone):
 
         # Get eigenvalues for last ionic step
         if self.parse_eigenvalues:
-            d['output']['eigenvalues'] = out.data['eigenvalues'][-1]
+            d['eigenvalues'] = out.data['eigenvalues'][-1]
 
         return d
 
