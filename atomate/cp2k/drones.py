@@ -22,11 +22,12 @@ import numpy as np
 from pymatgen.core.composition import Composition
 from pymatgen.core.structure import Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-from pymatgen.io.cp2k.outputs import Cp2kOutput
+from pymatgen.io.cp2k.outputs import Cp2kOutput, _hartree_to_ev_
 from pymatgen.io.cp2k.inputs import Cp2kInput
 from pymatgen.io.cube import Cube
 from pymatgen.apps.borg.hive import AbstractDrone
 from pymatgen.io.vasp.outputs import VolumetricData
+from pymatgen.command_line.bader_caller import BaderAnalysis
 
 from atomate.utils.utils import get_logger, get_uri
 from atomate import __version__ as atomate_version
@@ -397,6 +398,7 @@ class Cp2kDrone(AbstractDrone):
             d['pdos'] = out.data['pdos']
             d['cdos'] = out.data['cdos']
 
+        tmp_struc = Structure.from_dict(d['output']['structure'])
         if self.parse_hartree:
             cube = Cube(out.filenames['v_hartree'][-1])
             vd = VolumetricData(structure=cube.structure, data={'total': cube.data})
@@ -406,6 +408,11 @@ class Cp2kDrone(AbstractDrone):
             d['v_hartree_grid'] = [
                 vd.get_axis_grid(i) for i in range(3)
             ]
+            ba = BaderAnalysis(cube_filename=out.filenames['v_hartree'][-1])
+            tmp_struc.add_site_property(
+                'v_hartree',
+                [_hartree_to_ev_*ba.get_charge(i) for i in range(len(ba.structure))]
+            )
 
         if self.parse_electron_density:
             cube = Cube(out.filenames['electron_density'][-1])
@@ -416,6 +423,9 @@ class Cp2kDrone(AbstractDrone):
             d['electron_density_grid'] = [
                 vd.get_axis_grid(i) for i in range(3)
             ]
+            ba = BaderAnalysis(cube_filename=out.filenames['electron_density'][-1])
+            s = ba.get_charge_decorated_structure()
+            tmp_struc.add_site_property('charge', s.site_properties['charge'])
 
         if self.parse_spin_density:
             cube = Cube(out.filenames['spin_density'][-1])
@@ -426,6 +436,10 @@ class Cp2kDrone(AbstractDrone):
             d['spin_density_grid'] = [
                 vd.get_axis_grid(i) for i in range(3)
             ]
+            ba = BaderAnalysis(cube_filename=out.filenames['spin_density'][-1])
+            tmp_struc.add_spin_by_site([ba.get_charge(i) for i in range(len(ba.structure))])
+
+        d['output']['structure'] = tmp_struc.as_dict()
 
         # Get eigenvalues for last ionic step
         if self.parse_eigenvalues:

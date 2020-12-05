@@ -98,8 +98,6 @@ class Cp2kCalcDb(CalcDb):
         """
         Inserts a task document (e.g., as returned by Drone.assimilate()) into the database.
         Handles putting DOS, band structure and charge density into GridFS as needed.
-        During testing, a percentage of runs on some clusters had corrupted AECCAR files when even if everything else about the calculation looked OK.
-        So we do a quick check here and only record the AECCARs if they are valid
 
         Args:
             task_doc: (dict) the task document
@@ -198,23 +196,6 @@ class Cp2kCalcDb(CalcDb):
             )
 
         return fs_id, compression_type
-
-    def get_band_structure(self, task_id):
-        m_task = self.collection.find_one(
-            {"task_id": task_id}, {"calcs_reversed": 1}
-        )
-        fs_id = m_task["calcs_reversed"][0]["bandstructure_fs_id"]
-        fs = gridfs.GridFS(self.db, "bandstructure_fs")
-        bs_json = zlib.decompress(fs.get(fs_id).read())
-        bs_dict = json.loads(bs_json.decode())
-        if bs_dict["@class"] == "BandStructure":
-            return BandStructure.from_dict(bs_dict)
-        elif bs_dict["@class"] == "BandStructureSymmLine":
-            return BandStructureSymmLine.from_dict(bs_dict)
-        else:
-            raise ValueError(
-                "Unknown class for band structure! {}".format(bs_dict["@class"])
-            )
 
     def get_dos(self, task_id):
         m_task = self.collection.find_one(
