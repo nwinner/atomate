@@ -28,7 +28,7 @@ from pymatgen.io.cp2k.sets import (
 
 from atomate.cp2k.firetasks.write_inputs import (
     WriteCp2kFromIOSet,
-    WriteCp2kFromPrevious,
+    WriteTransmutedStructureIOSet
 )
 from atomate.cp2k.firetasks.run_calc import RunCp2KCustodian
 from atomate.cp2k.firetasks.glue_tasks import (
@@ -57,6 +57,8 @@ class BaseFW(Firework):
         cp2ktodb_kwargs=None,
         parents=None,
         files_to_copy=[],
+        transformations=[],
+        transformation_params=[],
         **kwargs
     ):
         """
@@ -109,27 +111,31 @@ class BaseFW(Firework):
             cp2ktodb_kwargs["additional_fields"] = {}
             cp2ktodb_kwargs["additional_fields"]["task_label"] = name
 
-        # if continuing from prev calc, update the structure with the previous result
-        # For hybrid, should almost always be true (initialize with gga first)
-        if prev_calc_loc:
-            if isinstance(files_to_copy, str):
-                files_to_copy = [files_to_copy]
+        # if continuing from previous calc, copy any necessary files
+        if files_to_copy:
             t.append(
                 CopyCp2kOutputs(
-                    files_to_copy=files_to_copy, calc_loc=prev_calc_loc
+                    files_to_copy=[files_to_copy] if isinstance(files_to_copy, str) else files_to_copy,
+                    calc_loc=prev_calc_loc
                 )
             )
-            t.append(UpdateStructureFromPrevCalc(cp2k_input_set=cp2k_input_set, prev_calc_loc=prev_calc_loc))
 
-        # if prev calc directory is being REPEATED, copy files
-        if prev_calc_dir:
+        # Apply pre-calc structure transformations if present and write input
+        # Modifying structure based on previous calc is considered a passive transformation
+        if transformations or prev_calc_loc:
             t.append(
-                WriteCp2kFromPrevious(
-                    cp2k_input_set_params=cp2k_input_set_params
+                WriteTransmutedStructureIOSet(
+                    transformations=transformations,
+                    cp2k_input_set=cp2k_input_set,
+                    structure=structure,
+                    prev_calc_loc=prev_calc_loc if prev_calc_loc else prev_calc_dir if prev_calc_dir else None,
+                    transformation_params=transformation_params,
+                    cp2k_input_params=cp2k_input_set_params,
+                    cp2k_output_file=kwargs.get('cp2k_output_file')
                 )
             )
 
-        # else run based on the IO set
+        # Else use IO set to write input
         else:
             t.append(
                 WriteCp2kFromIOSet(
