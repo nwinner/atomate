@@ -94,9 +94,8 @@ class WriteCp2kWithStrucUpdate(FiretaskBase):
 class WriteTransmutedStructureIOSet(FiretaskBase):
     """
     Apply the provided transformations to the input structure and write the
-    input set for that structure. Reads structure from POSCAR if no structure
-    provided. Note that if a transformation yields many structures from one,
-    only the last structure in the list is used.
+    input set for that structure. Note that if a transformation yields many
+    structures from one, only the last structure in the list is used.
 
     Required params:
         transformations (list): list of names of transformation classes as
@@ -175,6 +174,24 @@ class WriteTransmutedStructureIOSet(FiretaskBase):
         final_structure = transmuter.transformed_structures[
             -1
         ].final_structure.copy()
+
+        # TODO Temporary way to deal with perturb, which removes charges
+        for ts in transformations:
+            if ts in [
+                "PerturbStructureTransformation",
+                "DeformStructureTransformation",
+                "ConventionalCellTransformation",
+                "PrimitiveCellTransformation",
+                "SupercellTransformation"
+
+            ]:
+                transformation_is_charge_preserving = True
+            else:
+                transformation_is_charge_preserving = False
+
+            if self.get('structure'):
+                if transformation_is_charge_preserving:
+                    final_structure.set_charge(self['structure'].charge)
 
         cis_orig = self["cp2k_input_set"]
         cis_dict = cis_orig.as_dict()
